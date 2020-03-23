@@ -4,8 +4,7 @@ output:
   word_document: default
 ---
 
-**Student :  
-                    Cagin Keskin 20183202004  Applied Statistics **
+** Cagin Keskin 20183202004  Applied Statistics **
 
 
 **Introduction**
