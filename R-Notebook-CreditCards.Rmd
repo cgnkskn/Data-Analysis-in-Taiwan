@@ -1,0 +1,439 @@
+---
+title: "The Analysis Model for Default of Credit Card Clients Data Set"
+output:
+  word_document: default
+---
+
+**Student :  
+                    Cagin Keskin 20183202004  Applied Statistics **
+
+
+**Introduction**
+
+The data set is defined that a Taiwan-based credit card issuer wants to better predict
+the likelihood of default for its customers, as well as identify the key drivers
+that determine this likelihood. This would inform the issuer?s decisions on
+who to give a credit card to and what credit limit to provide. It would also 
+help the issuer have a better understanding of their current and potential customers,
+which would inform their future strategy, including their planning of offering targeted 
+credit products to their customers. The credit card issuer has gathered information on 
+30000 customers.The data set contains information on 24 variables, including demographic factors,
+credit data, history of payment, and bill statements of credit card customers
+from April 2005 to September 2005, as well as information on the outcome: did the customer 
+default or not? Data set information is as follows;
+_Y_   : Customers who have default payment  (Yes = 1 , No = 0)
+_X1_ : Amount of the given credit ; it includes both the individual consumer credit and her/his family
+_X2_ : Gender (1 = Male , 2 = Female)
+_X3_ : Education (1 = Graduate school, 2 = University, 3 = High School, 4 = Others)
+_X4_ : Marital Status (1 = Married, 2 = Single, 3 = Others)
+_X5_ : Age ( Year )
+_X6  - X11_ : History of past payment. We tracked the past monthly payment records
+(from April to September 2005) as follows: _X6_ = the repayment status in September 2005;
+_X7_ = the repayment status in August 2005; ?; _X11_ = the repayment status in April 2005.
+The measurement scale for the repayment status is: -1 = pay duly; 1 = payment delay for one month;
+2 = payment delay for two months; ?; 8 = payment delay for eight months; 9 = payment delay
+for nine months and above.
+
+_X12 - X17_ : Amount of bill statement (NT dollar). _X12_ = amount of bill statement in September 2005;
+_X13_ = amount of bill statement in August 2005; ? ; _X17_ = amount of bill statement in April 2005
+_X18 - X23_ : Amount of previous payment (NT dollar). _X18_ = amount paid in September 2005;
+_X19_ = amount paid in August 2005; ? ; _X23_ = amount paid in April 2005. 
+
+**Describe data set**
+
+In this study aim is to detected that are which variables effected results of decision process 
+and which of them is strongest ? 
+According to the information given, the describe of the data set is as in Table 1.
+
+
+![Table 1](C:/Users/asus-pc/Desktop/Proje_R/default\ of\ credit\ card\ clients/Data.png)
+
+Numbers are used to characterize the expressions in the sex,education,marriage and history of 
+past payment(repayment status) but the numbers 
+do not have a numerical significance. Therefore, it is included in the categorical data set.
+The expressions in the limit balance,age, amount of bill statement and amount of previous 
+payment are numerical values, so they are in numerical data set.
+
+![Table 2](C:/Users/asus-pc/Desktop/Proje_R/default\ of\ credit\ card\ clients/Measurement.png)
+
+
+**Required Packages**
+```{r}
+library(openxlsx)
+library(ggplot2)
+library(C50)
+library(funModeling)
+library(gridExtra)
+library(MASS)
+library(corrplot)
+library(nnet) 
+library(caret) 
+library(neuralnet)
+library(dplyr)
+library(e1071)
+
+```
+
+
+**Importing Default Credit Cards Data**
+```{r}
+data.path = "C:/Users/asus-pc/Desktop/Proje_R/default\ of\ credit\ card\ clients/CreditCardsFixed.xlsx"
+raw.data  = read.xlsx(data.path,sheet = 1)
+```
+
+```{r}
+raw.data$SEX = as.factor(raw.data$SEX)
+levels(raw.data$SEX) = c("Male","Female")
+```
+Converting sex data to factor.
+```{r}
+raw.data$EDUCATION = as.factor(raw.data$EDUCATION)
+levels(raw.data$EDUCATION) = c("Unknown","Graduate school", "University",
+                               "High school", "Others","Unknown", "Unknown")
+```
+Converting education levels to factor.
+```{r}
+raw.data$MARRIAGE = as.factor(raw.data$MARRIAGE)
+levels(raw.data$MARRIAGE) = c("Unknown","Married","Single","Others")
+```
+Converting marrige levels to factor.
+```{r}
+raw.data$PAY_0 = as.factor(raw.data$PAY_0)
+raw.data$PAY_2 = as.factor(raw.data$PAY_2)
+raw.data$PAY_3 = as.factor(raw.data$PAY_3)
+raw.data$PAY_4 = as.factor(raw.data$PAY_4)
+raw.data$PAY_5 = as.factor(raw.data$PAY_5)
+raw.data$PAY_6 = as.factor(raw.data$PAY_6)
+```
+Converting repatment status to factor.
+```{r}
+raw.data$default.payment.next.month = as.factor(raw.data$default.payment.next.month)
+levels(raw.data$default.payment.next.month) = c("No","Yes")
+colnames(raw.data)[colnames(raw.data) == "default.payment.next.month"] = "PAID"
+```
+Converting default payment to factor.
+```{r}
+credits = raw.data
+```
+Raw data pre-processing complete lets rename it.
+
+Here we provide an overview of the data set we have using the summary () function.
+We will then examine this information with the help of graphs.
+
+```{r}
+summary(credits[2:length(colnames(credits))])
+```
+```{r}
+credits <- credits[(credits$EDUCATION=="Graduate school" | credits$EDUCATION=="University" | credits$EDUCATION=="High school"),]
+credits$EDUCATION <- factor(credits$EDUCATION)
+
+credits <- credits[(credits$MARRIAGE=="Married" | credits$MARRIAGE=="Single"),]
+credits$MARRIAGE <- factor(credits$MARRIAGE)
+
+credits <- credits[(credits$PAY_0!=-2 & credits$PAY_0!=0),]
+credits <- credits[(credits$PAY_2!=-2 & credits$PAY_2!=0),]
+credits <- credits[(credits$PAY_3!=-2 & credits$PAY_3!=0),]
+credits <- credits[(credits$PAY_4!=-2 & credits$PAY_4!=0),]
+credits <- credits[(credits$PAY_5!=-2 & credits$PAY_5!=0),]
+credits <- credits[(credits$PAY_6!=-2 & credits$PAY_6!=0),]
+```
+We have not NA values however, some values are unknow so, we cleared data set and
+we obtain new data set that is approximately 4000 variables left.
+```{r}
+summary(credits[2:length(colnames(credits))])
+```
+According to new data set , firstly found the frequency tables of the data set.
+
+For categorical data variables ;
+```{r}
+c0 = ggplot(credits, aes(x=SEX)) + geom_bar()
+c1 = ggplot(credits, aes(x=EDUCATION)) + geom_bar() + scale_x_discrete(labels = c('Grad.','Uni','High'))
+c2 = ggplot(credits, aes(x=MARRIAGE)) + geom_bar()
+c3 = ggplot(credits, aes(x=PAID)) + geom_bar()
+c4 = ggplot(credits, aes(x=PAY_0)) + geom_bar()
+c5 = ggplot(credits, aes(x=PAY_2)) + geom_bar()
+c6 = ggplot(credits, aes(x=PAY_3)) + geom_bar()
+c7 = ggplot(credits, aes(x=PAY_4)) + geom_bar()
+c8 = ggplot(credits, aes(x=PAY_5)) + geom_bar()
+c9 = ggplot(credits, aes(x=PAY_6)) + geom_bar()
+grid.arrange(c0,c1,c2,c3,c4,c5,c6,c7,c8,c9, ncol=4, nrow=3)
+```
+For numerical data variables ;
+```{r}
+binsize = 50
+c0 = ggplot(credits, aes(x=LIMIT_BAL)) + geom_histogram(bins=binsize)
+c1 = ggplot(credits, aes(x=AGE)) + geom_histogram(bins=binsize)
+c2 = ggplot(credits, aes(x=BILL_AMT1)) + geom_histogram(bins=binsize)
+c3 = ggplot(credits, aes(x=BILL_AMT2)) + geom_histogram(bins=binsize)
+c4 = ggplot(credits, aes(x=BILL_AMT3)) + geom_histogram(bins=binsize)
+c5 = ggplot(credits, aes(x=BILL_AMT4)) + geom_histogram(bins=binsize)
+c6 = ggplot(credits, aes(x=BILL_AMT5)) + geom_histogram(bins=binsize)
+c7 = ggplot(credits, aes(x=BILL_AMT6)) + geom_histogram(bins=binsize)
+c8 = ggplot(credits, aes(x=PAY_AMT1)) + geom_histogram(bins=binsize)
+c9 = ggplot(credits, aes(x=PAY_AMT2)) + geom_histogram(bins=binsize)
+c10 = ggplot(credits, aes(x=PAY_AMT3)) + geom_histogram(bins=binsize)
+c11 = ggplot(credits, aes(x=PAY_AMT4)) + geom_histogram(bins=binsize)
+c12 = ggplot(credits, aes(x=PAY_AMT5)) + geom_histogram(bins=binsize)
+c13 = ggplot(credits, aes(x=PAY_AMT6)) + geom_histogram(bins=binsize)
+grid.arrange(c0,c1,c2,c3,c4,c5, ncol=2, nrow=3)
+grid.arrange(c6,c7,c8,c9,c10,c11,ncol=2,nrow=3)
+grid.arrange(c12,c13,ncol=2,nrow=3)
+```
+
+
+```{r}
+ggplot(data = credits, aes(x = LIMIT_BAL, fill = PAID)) + geom_bar() + ylab("Frequency")
+```
+Graph 1. Bar-plot which plot frequency of limit balance levels with respect to paid credit default.
+
+```{r}
+p0 = ggplot(data = credits,aes(x=PAY_0)) + geom_bar() 
+p2 = ggplot(data = credits,aes(x=PAY_2)) + geom_bar() 
+p3 = ggplot(data = credits,aes(x=PAY_3)) + geom_bar() 
+p4 = ggplot(data = credits,aes(x=PAY_4)) + geom_bar() 
+p5 = ggplot(data = credits,aes(x=PAY_5)) + geom_bar() 
+p6 = ggplot(data = credits,aes(x=PAY_6)) + geom_bar() 
+grid.arrange(p0,p2,p3,p4,p5,p6,ncol=3,nrow=2)
+```
+Graph 2. The repayment status in mounths 2005
+
+**Correlation between data set variables**
+
+According to the customer's social status information for next month payments and 
+non-payment frequency graphics are as follows.These graphs allow us to interpret the 
+effects of social situations on payments.First, the graphs of the effects of categorical values 
+on the payment status are given. We then demonstrated the categorical values of 2 with the help of a boxplot,
+and then we performed a chi-squared test with all categorical data. 
+
+```{r}
+ggplot(data = credits, aes(x = EDUCATION, fill = PAID)) + geom_bar() +
+scale_y_continuous(breaks = seq(min(0),max(30000),by=1000),na.value = T) + ylab("Frequency")
+```
+Graph 3. Bar-plot which plot education levels of credit card users
+
+After plotting Education, now we create a new bar-plot which plots martial status of credit card users.
+
+```{r}
+ggplot(data = credits,aes(x = MARRIAGE , fill = PAID)) + geom_bar() + ylab("Frequency")
+
+```
+Graph 4. Bar-plot which plot marriage levels of credit card users
+
+
+Now, by creating a histogram chart, we will look at the gender-based 
+age distribution of credit card users.
+
+```{r}
+ggplot(data = credits, aes(x = AGE , fill = PAID)) + geom_bar() + ylab("Frequency")
+```
+Graph 5. Bar-plot which plot age levels of credit card users
+
+With a similar approach, we will look at the education based 
+age distribution of credit card users.
+
+```{r}
+ggplot(data = credits, aes(x = SEX , fill = PAID)) + geom_bar() + ylab("Frequency")
+
+```
+Graph 6. Bar-plot which plot sex levels of credit card users
+
+We see that there are more women in the data set, but the pay percentage of women is lower than men. 
+In order to better understand the impact of the 3 social status on payments,
+we will examine a boxplot chart together.
+
+```{r}
+
+bx1 = ggplot(data = credits, aes(x = SEX, y = (LIMIT_BAL/1000), fill=EDUCATION)) + 
+  geom_boxplot() +
+  xlab("Sex") + 
+  ylab("Balance L.(x1000$)") + 
+  scale_fill_brewer(palette = "Accent")
+
+bx2 = ggplot(credits, aes(x = EDUCATION,y = (LIMIT_BAL/1000), fill=SEX)) + 
+  geom_boxplot() +
+  xlab("Education") + 
+  ylab("Balance L.(x1000$)") + 
+  scale_fill_brewer(palette = "Paired")
+
+bx3 = ggplot(data = credits, aes(x = MARRIAGE, y = (LIMIT_BAL/1000), fill=SEX)) + 
+  geom_boxplot() +
+  xlab("Marital Status") + 
+  ylab("Balance L.(x1000$)") + 
+  scale_fill_brewer(palette = "Accent")
+
+bx4 = ggplot(credits, aes(x = EDUCATION, y = (LIMIT_BAL/1000), fill=MARRIAGE)) + 
+  geom_boxplot() +
+  xlab("Education") + 
+  ylab("Balance L.(x1000$)")
+
+grid.arrange(bx1,bx2,nrow=2,ncol=1)
+grid.arrange(bx3,bx4,nrow=2,ncol=1)
+```
+Graph 7. Box-plot which compare relations between social status
+
+When we compared the balance limits with gender,education and marriage status.We obtained
+result that gender has no effects on balance limit decision process of bank while the 
+education level is a positive effect on the process. Additionally, we compared sex with 
+respect to marital status and we obtained similar result only female, so can say that 
+there is no change at females side such as balance limits depending on their marital status.
+On the otherhand, balance limit changes a lot of things side of males with the expenditures which is the 
+reason on increased balance limits. And result of forth graph is education level is effected 
+on marital status but marital status is not important on decision process of balance limit.
+However, here we have evaluated only 3 social statues. We applied a chi-square test to see all categorical data 
+(repayment status and demographic status) in their relationships.
+
+```{r}
+data.path = "C:/Users/asus-pc/Desktop/Proje_R/default\ of\ credit\ card\ clients/CreditCardsFixed.xlsx"
+raw.data  = read.xlsx(data.path,sheet = 1)
+raw.data = raw.data[,2:length(colnames(raw.data))]
+
+raw.data = raw.data[(raw.data$EDUCATION == 1 | raw.data$EDUCATION == 2 | raw.data$EDUCATION == 3),]
+raw.data = raw.data[(raw.data$MARRIAGE == 1 | raw.data$MARRIAGE == 2),]
+
+raw.data <- raw.data[raw.data$PAY_0 != -2 & raw.data$PAY_0 != 0,]
+raw.data <- raw.data[raw.data$PAY_2 != -2 & raw.data$PAY_2 != 0,]
+raw.data <- raw.data[raw.data$PAY_3 != -2 & raw.data$PAY_3 != 0,]
+raw.data <- raw.data[raw.data$PAY_4 != -2 & raw.data$PAY_4 != 0,]
+raw.data <- raw.data[raw.data$PAY_5 != -2 & raw.data$PAY_5 != 0,]
+raw.data <- raw.data[raw.data$PAY_6 != -2 & raw.data$PAY_6 != 0,]
+
+```
+
+```{r}
+categorical.data <- raw.data[,c(2,3,4,6:11,24)]
+model<-glm(categorical.data$default.payment.next.month~.,family=binomial(link='logit'),data=categorical.data)
+anova(model,test="Chisq")
+```
+Our hypothesis  
+Ho = There is no relationship between categoric variable and paid.
+H1 = There is some relationship between categoric variable and paid.
+
+According to our results, we understand that categorical data show binomial distribution. 
+All categorical values except for marital status are effective on payment status.
+In order to achieve better results, we rejected Ho for categories that the sex, education status,
+pay_0,pay_2,pay_3 and pay_5 classes.
+
+CORRELATION TABLE 
+```{r}
+names.data = colnames(raw.data)
+names.data <- names.data[1:(length(names.data)-1)]
+names.data <- c(names.data, "Y")
+
+numeric.cor<-cor(raw.data)
+colnames(numeric.cor) <- names.data
+rownames(numeric.cor) <- names.data
+corrplot(numeric.cor, diag = FALSE,
+         tl.pos = "td", tl.cex = 0.5, method = "pie", type = "upper")
+```
+
+We used the values that have a high relation with applied correlation. 
+And according to result of correlation respectively he lower the amount of given credit
+limit of the balance owing, the bigger the chances to default.Male persons have more chances 
+to default.The better education the lower chances to default.The better education the lower chances to default.Having a delay, even for 1 month in any of the previous months, increases the chance of default.
+The smaller the difference between the amount owed on the bill in September and April, 
+the bigger the chances to default.The smaller the payment amount, the bigger the chance of default.(In general)
+```{r}
+lrm=lm(data= raw.data,raw.data$default.payment.next.month~.)
+par(mfrow=c(2,2))
+plot(lrm)
+```
+
+```{r}
+imp <- raw.data[,c(1,5,6,7,11,24)]
+lrm=lm(data= imp,imp$default.payment.next.month~.)
+par(mfrow=c(2,2))
+plot(lrm)
+```
+
+We used linear regression to see the relationship between the values in the whole data set.
+Although we have chosen the most important data we have obtained according to the results 
+of the data set output of Adjusted R-squared is  0.2699. Because of the fact that there is no correlation 
+with linear regression for data not showing normal distribution logistic regression is used.
+
+**MODEL**
+
+Now we will check hypothesizes about predictors? impact on the dependent variable made in the correlation 
+relationship.Also, we will try to implement a model which can predict default with a level higher than majority class classifier which means accuracy of models should be higher than 77.8%.
+
+**Logistic Regression**
+
+Logistic regression hypothesis: 
+
+Ho = There is no relationship between variables and PAID.
+H1 = There is some relationship between variables and PAID.
+```{r}
+set.seed(101)
+index <- createDataPartition(credits$PAID,
+                             p = 0.7,
+                             list = F)
+trainSet <- credits[index,]
+xTrain <- trainSet %>% select(-PAID)
+yTrain <- trainSet$PAID
+
+testSet <- credits[-index,]
+
+
+fiveMetric <- function(...) c(twoClassSummary(...),
+                              defaultSummary(...))
+
+ctrl <- trainControl(method = "cv",
+                     number = 5,
+                     summaryFunction = fiveMetric,
+                     classProbs = T,
+                     verboseIter = T)
+
+ctrlSMOTE <- trainControl(method = "cv",
+                          number = 5,
+                          summaryFunction = fiveMetric,
+                          classProbs = T,
+                          sampling = "smote",
+                          verboseIter = T)
+```
+
+```{r}
+set.seed(101)
+glm_model <- train(PAID ~ ., data = credits,
+                   method = "glmStepAIC",
+                   trControl = ctrl,
+                   preProcess = c("nzv","BoxCox"),
+                   metric = "Accuracy"
+                   )
+```
+
+```{r}
+summary(glm_model)
+```
+**Random Forest Classification**
+```{r}
+set.seed(101)
+rf_model <- train(PAID ~ ., data = credits,
+                  method = "rf",
+                  trControl = ctrl,
+                  metric = "Accuracy",
+                  tuneGrid = expand.grid(.mtry = c(4,8,12,22)))
+```
+```{r}
+varImp(rf_model)
+```
+**Artificial Neural Network**
+```{r}
+nn_grid <- expand.grid(.size = c(4,8,2),
+                       .decay = c(0.001,0.01,0.1))
+set.seed(101)
+nn_model <- train(x = xTrain, y = yTrain,
+                  method = "nnet",
+                  tuneGrid = nn_grid,
+                  preProcess = c("center", "scale"),
+                  trControl = ctrl)
+```
+
+```{r}
+plot(nn_model)
+```
+
+The data selected according to the correlation relationship were used logistic regression, 
+random forest and neural network methods respectively. The accuracy rate was 0.78, 0.78 and 0.76, respectively.
+We would choose Random Forest model because it is still the top choices by combination of other parameters and shows stable result. Additionaly, combinations of accuracy, sensivity and specsificity for Random Forest is a little bit better than for the Logistic Regression model and Neural Net Work.
+
+
+
